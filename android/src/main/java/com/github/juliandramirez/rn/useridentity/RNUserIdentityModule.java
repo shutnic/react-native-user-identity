@@ -16,72 +16,66 @@ import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
+import com.facebook.react.bridge.ActivityEventListener;
+import com.facebook.react.bridge.BaseActivityEventListener;
 import com.facebook.react.module.annotations.ReactModule;
 
-
-@ReactModule(name="RNUserIdentity")
+@ReactModule(name = "RNUserIdentity")
 public class RNUserIdentityModule extends ReactContextBaseJavaModule {
 
-  /* MARK: - Constants */
-  public static final int INTENT_REQUEST_CODE = 1;
+    /* MARK: - Constants */
+    public static final int INTENT_REQUEST_CODE = 1;
 
-  /* MARK: - Properties */
-  private Promise promise;
-  private final ReactApplicationContext reactContext;
+    /* MARK: - Properties */
+    private Promise promise;
+    private final ReactApplicationContext reactContext;
 
-  /* MARK: - Constructors */
-  public RNUserIdentityModule(ReactApplicationContext reactContext) {
-    super(reactContext);
-    this.reactContext = reactContext;
-  }
+    private final ActivityEventListener activityEventListener = new BaseActivityEventListener() {
+        @Override
+        public void onActivityResult(Activity activity, int requestCode, int resultCode, Intent data) {
+            super.onActivityResult(activity, requestCode, resultCode, data);
 
-  /* MARK: - Methods */
-  @ReactMethod
-  public void triggerAccountSelection(String message, String accountType, Promise promise) {
-      this.promise = promise;
+            if (resultCode == Activity.RESULT_OK) {
+                String accountName = data.getStringExtra(AccountManager.KEY_ACCOUNT_NAME);
+                promise.resolve(accountName);
+            } else {
+                promise.reject("USER_CANCELED_ACCOUNT_SELECTION", "User cancelled the account selection dialog");
+            }
+        }
+    };
 
-      Intent intent = null;
-      if(Build.VERSION.SDK_INT <= 22) {
-          intent = AccountManager.newChooseAccountIntent(
-                  null,
-                  null,
-                  accountType == null ? null : new String[]{accountType},
-                  true,
-                  message,
-                  null,
-                  null,
-                  null );
-      } else {
-          intent = AccountManager.newChooseAccountIntent(
-                  null,
-                  null,
-                  accountType == null ? null : new String[]{accountType},
-                  message,
-                  null,
-                  null,
-                  null );
-      }
+    /* MARK: - Constructors */
+    public RNUserIdentityModule(ReactApplicationContext reactContext) {
+        super(reactContext);
+        this.reactContext = reactContext;
+        reactContext.addActivityEventListener(activityEventListener);
+    }
 
-      Activity activity = this.getCurrentActivity();
+    /* MARK: - Methods */
+    @ReactMethod
+    public void triggerAccountSelection(String message, String accountType, Promise promise) {
+        this.promise = promise;
 
-      if(activity == null) {
-          this.promise.reject("NO_CURRENT_UI_ACTIVITY", "There is not an activity to execute an intent");
-      } else {
-          activity.startActivityForResult(intent, INTENT_REQUEST_CODE);
-      }
-  }
+        Intent intent = null;
+        if (Build.VERSION.SDK_INT <= 22) {
+            intent = AccountManager.newChooseAccountIntent(null, null,
+                    accountType == null ? null : new String[] { accountType }, true, message, null, null, null);
+        } else {
+            intent = AccountManager.newChooseAccountIntent(null, null,
+                    accountType == null ? null : new String[] { accountType }, message, null, null, null);
+        }
 
-  public void onActivityResult(int resultCode, Intent data) {
-      if(resultCode == Activity.RESULT_OK) {
-          String accountName = data.getStringExtra(AccountManager.KEY_ACCOUNT_NAME);
-          this.promise.resolve(accountName);
-      } else {
-          this.promise.reject("USER_CANCELED_ACCOUNT_SELECTION", "User cancelled the account selection dialog");
-      }
-  }  
+        Activity activity = this.getCurrentActivity();
 
-  @Override
-  public String getName() {
-    return "RNUserIdentity";
-  }
+        if (activity == null) {
+            this.promise.reject("NO_CURRENT_UI_ACTIVITY", "There is not an activity to execute an intent");
+        } else {
+            activity.startActivityForResult(intent, INTENT_REQUEST_CODE);
+        }
+    }
+
+    @Override
+    public String getName() {
+        return "RNUserIdentity";
+    }
 }
